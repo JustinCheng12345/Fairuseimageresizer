@@ -10,10 +10,10 @@ This script is used for re-upload a smaller fair use image for fulfilling
 requirnment of fair use.
 """
 #
-# (C) Pywikipedia bot team, 2006-2011
-# (C) Justincheng12345, 2013
+# Justincheng12345, 2013
 #
-# Distributed under the terms of the MIT license.
+# WTFPL, but please credit if possible. ( You can 'not credit', and there isn't
+# a problem.)
 #
 
 import os,re,urllib
