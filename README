@@ -1,0 +1,8 @@
+This is used to re-size too large/clear fair use images to fulfill the requirement of fair use.
+
+**************************************************
+* ALPHA STAGE: CHECK every step and your result. *
+**************************************************
+
+Known bugs:
+1. Cannot done with unicode-encoded title images.
