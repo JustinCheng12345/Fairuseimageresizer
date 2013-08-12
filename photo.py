@@ -21,15 +21,30 @@ import pywikibot
 import Myopener
 
 class FileResizeBot:
-    def __init__(self,local):
+    def __init__(self,local,gen):
         self.local = local
+        self.generator = gen
         self.site = pywikibot.getSite()
         self.opener = Myopener.MyOpener()
-        # MyOpener is urllib.FancyURLopener to request
-        # as data.api doesn't provide action = 'parse'
+        # MyOpener is urllib.FancyURLopener to download the thumb
 
     def run(self):
-        self.imagename = pywikibot.input('Which page to work on?')
+        if self.generator:
+            for page in self.generator:
+                pywikibot.output('\03{lightpurple}Start running for '
+                                 +page.title()+'\03{default}')
+                self.run2(page)
+                pywikibot.output('\03{lightpurple}Finished running for '
+                                 +page.title()+'\03{default}')
+        else:
+            page = pywikibot.input('Which image to work on?')
+            self.run2(page)
+
+    def run2(self,page):
+        if type(page) == unicode:
+            self.imagename = page
+        else:
+            self.imagename = page.title()
         self.nofileimagename = self.imagename.split(':')[-1]
         if (self.imagename.split('.')[-1]) == 'svg':
             pywikibot.output('Svg found:'+self.imagename)
@@ -41,26 +56,41 @@ class FileResizeBot:
         usepage = self.filelink(page)
         if usepage == None:
             return
+        pywikibot.output('Start parsing '+usepage.title())
         url,size = self.parsetext(usepage)
-        self.download(url,size)
-        raise ValueError('test')
-        if not self.local:
-            self.upload()
+        if url and size:
+            pywikibot.output('Start downloading image')
+            Success = self.download(url,size)
+        else:
+            return
+        if not Success:
+            return
+        pywikibot.output('Start uploading image')
+        #if not self.local:
+        #    self.upload()
         # TODO: log for successful upload.
 
     def parsetext(self,usepage):
         results = pywikibot.data.api.Request(action="parse",
                                              page=usepage.title()
                                              ).submit()["parse"]["text"]["*"]
-        pywikibot.output(self.site.lang)
         imagename = urllib.quote(self.nofileimagename.encode('utf8'))
+        imagename = imagename.replace(u'%20', u'_')
         text = imagename+'" width="'
         regext = ('('+re.escape('//upload.wikimedia.org/wikipedia/'+
                                 self.site.lang+'/thumb/')+'\\w{1}/\\w{2}/'+
                   re.escape(imagename)+')/\d*?px-'+re.escape(text)+'(\d*?)\\"')
+        # if the thumb is larger than the orginal image, then the address
+        # will not include /thumb/, and hence no match will be given. As no
+        # should be re-sized, return None
         match=re.search(regext,results, flags=0)
-        return match.group(1),match.group(2)
-        # Return directly as there will still be error if cannot catch
+        if match:
+            return match.group(1),match.group(2)
+        else:
+            pywikibot.output('\03{green}Regex cannot catch result, it is '+
+                             'possible that usage size is larger than the '+
+                             'orginal.')
+            return None,None
 
     def filelink(self,page):
         fileLinksPage = pywikibot.ImagePage(self.site,page)
@@ -68,7 +98,7 @@ class FileResizeBot:
         for page in pywikibot.pagegenerators.FileLinksGenerator(fileLinksPage):
             a = a+1
         if a>1:
-            pywikibot.output('More than one page')
+            pywikibot.output('The file is used multiple times.')
         else:
             return page
         # A fair use image should not be use multiple times.
@@ -86,15 +116,15 @@ class FileResizeBot:
         key = str(r["query"]["pages"].get(key))
         size2 = int(re.search("width': (\\d*?),",key,flags=0).group(1))
         # A bit hacky here, but I can't find a way round.
-        pywikibot.output(size)
-        pywikibot.output(size2)
-        if (size2 <= size):
-            raise ValueError("Orginal too small")
+        if (size2 <= size) or (size2-size<50):
+            pywikibot.output("\03{green}Orginal image is too small to proceed")
+            return False
         url = ('https:'+url+'/'+str(size)+'px-'+
                urllib.quote(self.imagename.split(':')[-1].encode('utf8')))
         self.localf = rewrite_path+'\\Cache\\'+self.imagename.split(':')[-1]
         # This should work with using pwb.py or else state it yourself
         self.opener.retrieve(url,self.localf)
+        return True
 
     def upload(self):
         filename = os.path.basename(self.localf)
@@ -114,10 +144,20 @@ class FileResizeBot:
             # Lazy to catch all errores
             pywikibot.output(u"Upload successful.")     
 
-def main():
+def main(*args):
     local = False
-    cat = False
-    bot = FileResizeBot(local)
+    gen = None
+    preloadingGen = None
+    genFactory = pywikibot.pagegenerators.GeneratorFactory()
+    for arg in pywikibot.handleArgs(*args):
+        if genFactory.handleArg(arg):
+            continue
+        if arg == '-local':
+            local = True
+    gen = genFactory.getCombinedGenerator()
+    if gen:
+        preloadingGen = pywikibot.pagegenerators.PreloadingGenerator(gen)
+    bot = FileResizeBot(local,preloadingGen)
     bot.run()
 
 if __name__ == "__main__":
