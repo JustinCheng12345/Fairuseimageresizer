@@ -17,7 +17,9 @@ requirnment of fair use.
 
 import os, re, urllib, codecs
 import pywikibot
-import Myopener
+
+class MyOpener(urllib.FancyURLopener):
+    version = 'User:JC1-bot python code for those not provided in pywikibot.'
 
 class FileResizeBot:
     def __init__(self, local, gen, prer):
@@ -25,13 +27,9 @@ class FileResizeBot:
         self.prer = prer
         self.generator = gen
         self.site = pywikibot.getSite()
-        self.opener = Myopener.MyOpener()
-        # MyOpener is urllib.FancyURLopener to download the thumb
+        self.opener = MyOpener()
 
     def run(self):
-        """
-        Distingish between generator/single page
-        """
         if self.generator:
             for page in self.generator:
                 pywikibot.output('\03{lightpurple}Start running for '
@@ -43,9 +41,6 @@ class FileResizeBot:
             self.run2(page)
 
     def run2(self, page):
-        """
-        init for imagename
-        """
         if type(page) == unicode:
             self.imagename = page
         else:
@@ -59,9 +54,6 @@ class FileResizeBot:
         self.do(self.imagename)
 
     def do(self, page):
-        """
-        first layer for whole work on that image.
-        """
         usepage = self.filelink(page)
         if usepage == None:
             return
@@ -76,9 +68,10 @@ class FileResizeBot:
             return
         if not Suc:
             return
-        if (not self.local) or (not self.prer):
+        
+        if (not self.local) and (not self.prer):
             pywikibot.output('Start uploading image')
-            self.upload()
+        #    self.upload()
         # TODO: log for successful upload.
         if self.prer:
             pywikibot.output('Start logging.')
@@ -88,9 +81,6 @@ class FileResizeBot:
             f.close()
 
     def parsetext(self, usepage):
-        """
-        parsing the usepage of the image to find our the current size
-        """
         results = pywikibot.data.api.Request(action="parse",
                                              page=usepage.title()
                                              ).submit()["parse"]["text"]["*"]
@@ -113,22 +103,23 @@ class FileResizeBot:
             return None, None
 
     def filelink(self, page):
-        """
-        Find out usepage
-        """
         fileLinksPage = pywikibot.ImagePage(self.site, page)
         a = 0
-        for page in pywikibot.pagegenerators.FileLinksGenerator(fileLinksPage):
+        for usepage in pywikibot.pagegenerators.FileLinksGenerator(fileLinksPage):
             a = a + 1
         if a > 1:
             pywikibot.output('\03{green}The file is used multiple times.')
         else:
-            return page
+            try:
+                return usepage
+            except:
+                return None
         # A fair use image should not be use multiple times.
 
     def download(self, url, size):
         url = ('https:'+url+'/'+str(size)+'px-'+
                urllib.quote(self.imagename.split(':')[-1].encode('utf8')))
+        url = url.replace(u'%20', u'_')
         self.localf = rewrite_path+'\\Cache\\'+self.imagename.split(':')[-1]
         # This should work with using pwb.py or else state it yourself
         self.opener.retrieve(url, self.localf)
