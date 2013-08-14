@@ -68,7 +68,6 @@ class FileResizeBot:
             return
         if not Suc:
             return
-        
         if (not self.local) and (not self.prer):
             pywikibot.output('Start uploading image')
         #    self.upload()
@@ -120,9 +119,10 @@ class FileResizeBot:
         url = ('https:'+url+'/'+str(size)+'px-'+
                urllib.quote(self.imagename.split(':')[-1].encode('utf8')))
         url = url.replace(u'%20', u'_')
-        self.localf = rewrite_path+'\\Cache\\'+self.imagename.split(':')[-1]
-        # This should work with using pwb.py or else state it yourself
+        self.localf = (pywikibot.config.base_dir+'\\Cache\\'+
+                       self.imagename.split(':')[-1])
         self.opener.retrieve(url, self.localf)
+        # Well, this doesn't work on tools lab.
 
     def sizecheck(self, size):
         size = int(size)
