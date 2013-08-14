@@ -104,7 +104,8 @@ class FileResizeBot:
     def filelink(self, page):
         fileLinksPage = pywikibot.ImagePage(self.site, page)
         a = 0
-        for usepage in pywikibot.pagegenerators.FileLinksGenerator(fileLinksPage):
+        for usepage in pywikibot.pagegenerators.FileLinksGenerator(
+            fileLinksPage):
             a = a + 1
         if a > 1:
             pywikibot.output('\03{green}The file is used multiple times.')
@@ -133,6 +134,7 @@ class FileResizeBot:
         r = (pywikibot.data.api.Request(action='query', prop='imageinfo',
                                       iiprop='size', titles=self.imagename)
            .submit())
+        print r,self.imagename
         for key in r["query"]["pages"]:
             size2 = r["query"]["pages"][key]["imageinfo"][0]["width"]
         if (size2 <= size) or (size2-size<50):
