@@ -127,7 +127,8 @@ class FileResizeBot:
         page = pagename.split(':')[-1]
         url = 'https:'+url+'/'+str(size)+'px-'+urllib.quote(page.encode('utf8'))
         url = url.replace(u'%20', u'_')
-        localf = pywikibot.config.base_dir+'\\Cache\\'+page
+        localf = pywikibot.config.base_dir+'/Cache/'+page
+        print localf
         self.opener.retrieve(url, localf)
         return localf
         # Well, this doesn't work on tools lab.
