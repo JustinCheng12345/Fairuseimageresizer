@@ -28,62 +28,69 @@ class FileResizeBot:
         self.generator = gen
         self.site = pywikibot.getSite()
         self.opener = MyOpener()
+        self.pagelist = []
 
     def run(self):
         if self.generator:
             for page in self.generator:
-                pywikibot.output('\03{lightpurple}Start running for '
-                                 +page.title()+'\03{default}')
                 self.run2(page)
-                pywikibot.output('Finished running for '+page.title())
         else:
             page = pywikibot.input('Which image to work on?')
             self.run2(page)
 
     def run2(self, page):
+        sinp = False
         if type(page) == unicode:
-            self.imagename = page
+            sinp = True
         else:
-            self.imagename = page.title()
-        self.nofileimagename = self.imagename.split(':')[-1]
-        if (((self.imagename.split('.')[-1]) == 'svg') or
-            ((self.imagename.split('.')[-1]) == 'ogg')):
+            page = page.title()
+        imagename = page.split('.')[-1]
+        if imagename == 'svg' or imagename == 'ogg':
             pywikibot.output('\03{green}Unaccepted File Extension\03{default}')
             #svg should never be re-sized
             return
-        self.do(self.imagename)
+        self.do(page, sinp)
 
-    def do(self, page):
-        usepage = self.filelink(page)
-        if usepage == None:
-            return
-        pywikibot.output('Start parsing '+usepage.title())
-        url, size = self.parsetext(usepage)
-        if url and size:
-            Suc, size = self.sizecheck(size)
-            if Suc and not self.prer:
-                pywikibot.output('Start downloading image')
-                self.download(url, size)
-        else:
-            return
-        if not Suc:
-            return
-        if (not self.local) and (not self.prer):
-            pywikibot.output('Start uploading image')
-        #    self.upload()
-        # TODO: log for successful upload.
-        if self.prer:
-            pywikibot.output('Start logging.')
-            f = codecs.open(pywikibot.config.datafilepath('b.txt'),'a','utf-8')
-            f.write(u"# [[%s]]" % (page))
-            f.write("\n")
-            f.close()
+    def do(self, page, sinp):
+        self.pagelist.append(page)
+        if len(self.pagelist) == 50 or sinp:
+            pywikibot.output('Getting page(s).')
+            r = self.imageinfo('|'.join(self.pagelist))
+            for key in r["query"]["pages"]:
+                pagename = r["query"]["pages"][key]["title"]
+                pywikibot.output('\03{lightpurple}Start processing '+pagename)
+                usepage = self.filelink(pagename)
+                if usepage == None:
+                    continue
+                pywikibot.output('\03{default}Start parsing '+usepage.title())
+                url, size = self.parsetext(usepage, pagename)
+                if size:
+                    size2 = r["query"]["pages"][key]["imageinfo"][0]["width"]
+                    Suc, size = self.sizecheck(size, size2)
+                    if not Suc:
+                        continue
+                else:
+                    continue
+                if not self.prer:
+                    pywikibot.output('Start downloading image')
+                    localf = self.download(url, size, pagename)
+                    if not self.local:
+                        pywikibot.output('Start uploading image')
+                    #    self.upload(localf, pagename)
+                if self.prer:
+                    pywikibot.output('Start logging.')
+                    f = codecs.open(pywikibot.config.datafilepath('b.txt'),'a',
+                                    'utf-8')
+                    f.write(u"# [[%s]]" % (page))
+                    f.write("\n")
+                    f.close()
+            self.pagelist = []
 
-    def parsetext(self, usepage):
+    def parsetext(self, usepage, pagename):
         results = pywikibot.data.api.Request(action="parse",
                                              page=usepage.title()
                                              ).submit()["parse"]["text"]["*"]
-        imagename = urllib.quote(self.nofileimagename.encode('utf8'))
+        imagename = urllib.quote(pagename.split(':')[-1].encode('utf8'))
         imagename = imagename.replace(u'%20', u'_')
         text = imagename+'" width="'
         regext = ('('+re.escape('//upload.wikimedia.org/wikipedia/'+
@@ -94,7 +101,7 @@ class FileResizeBot:
         # should be re-sized, return None
         match = re.search(regext,results, flags=0)
         if match:
-            return match.group(1), match.group(2)
+            return match.group(1), int(match.group(2))
         else:
             pywikibot.output('\03{green}Regex cannot catch result, it is '+
                              'possible that usage size is larger than or the'+
@@ -116,45 +123,38 @@ class FileResizeBot:
                 return None
         # A fair use image should not be use multiple times.
 
-    def download(self, url, size):
-        url = ('https:'+url+'/'+str(size)+'px-'+
-               urllib.quote(self.imagename.split(':')[-1].encode('utf8')))
+    def download(self, url, size, pagename):
+        page = pagename.split(':')[-1]
+        url = 'https:'+url+'/'+str(size)+'px-'+urllib.quote(page.encode('utf8'))
         url = url.replace(u'%20', u'_')
-        self.localf = (pywikibot.config.base_dir+'\\Cache\\'+
-                       self.imagename.split(':')[-1])
-        self.opener.retrieve(url, self.localf)
+        localf = pywikibot.config.base_dir+'\\Cache\\'+page
+        self.opener.retrieve(url, localf)
+        return localf
         # Well, this doesn't work on tools lab.
 
-    def sizecheck(self, size):
-        size = int(size)
+    def imageinfo(self, name):
+        r = (pywikibot.data.api.Request(action='query', prop='imageinfo',
+                                        iiprop='size', titles=name).submit())
+        return r
+    
+    def sizecheck(self, size, size2):
         if size + 50 < 300:
             size = 300
         else:
             size = size + 50
-        r = (pywikibot.data.api.Request(action='query', prop='imageinfo',
-                                      iiprop='size', titles=self.imagename)
-           .submit())
-        print r,self.imagename
-        for key in r["query"]["pages"]:
-            size2 = r["query"]["pages"][key]["imageinfo"][0]["width"]
         if (size2 <= size) or (size2-size<50):
             pywikibot.output("\03{green}Orginal image is too small to"+
                              "proceed\03{default}")
             return False, 0
         return True, size
 
-    def upload(self):
-        """
-        Upload the image.
-        """
-        filename = os.path.basename(self.localf)
-        imagepage = pywikibot.ImagePage(self.site, filename)
+    def upload(self, localf, pagename):
+        imagepage = pywikibot.ImagePage(self.site, pagename)
         imagepage.text = u'合理使用，降低解像度'
         # TODO: Use i18n
         site = pywikibot.Site()
         try:
-            site.upload(imagepage, source_filename=self.localf,
-                        ignore_warnings=True)
+            site.upload(imagepage, source_filename=localf,ignore_warnings=True)
             # ignore_warnings=True or error:'file exist'
         except Exception:
             pywikibot.error("Upload error: ", exc_info=True)
@@ -178,9 +178,11 @@ def main(*args):
         elif arg == '-prer':
             prer = True
     gen = genFactory.getCombinedGenerator()
-    if gen:
-        preloadingGen = pywikibot.pagegenerators.PreloadingGenerator(gen)
-    bot = FileResizeBot(local, preloadingGen, prer)
+    #if gen:
+    #    preloadingGen = pywikibot.pagegenerators.PreloadingGenerator(gen)
+    # Do not preload as not processing on the image page itself, will preload
+    # later.
+    bot = FileResizeBot(local, gen, prer)
     bot.run()
 
 if __name__ == "__main__":
