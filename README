@@ -1,8 +1,24 @@
-This is used to re-size too large/clear fair use images to fulfill the requirement of fair use.
+This script is used to re-size images that are too large or clear which violated fair use terms, as to fulfill the requirement.
 
 **************************************************
 * ALPHA STAGE: CHECK every step and your result. *
 **************************************************
 
-Known bugs:
-1. Cannot done with unicode-encoded title images.
+Requirement:
+1. This script require Python Wikimedia Bot Freamwork.
+
+Process:
+1. Input a list or one image.
+2. Retuen null if ogg/svg given.
+3. Check number of pages which use the image, if that more than one page, return null, as a fair use image should not be used more than once.
+4. Use info=image to find the width of image.
+5. Purge the page to find width of image in page (No API from PWB provided.)
+6. If width of image in page > image width as 50, download the thumbnail, else return null.
+7. Upload the downloaded image.
+
+Fixed bugs:
+1. Can now process unicode-encoded title images, which is due to regex.
+
+TODO:
+1. Preload and download images, check same image by hash.
+2. If none args given, retrive list from category directly.
